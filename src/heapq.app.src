@@ -1,0 +1,11 @@
+{application, heapq,
+ [
+  {description, "Binary heap priority queue"},
+  {vsn, "git"},
+  {registered, []},
+  {applications, []},
+  {env, []},
+  {licenses, ["Apache"]},
+  {links,[{"GitHub","https://github.com/seniverse/heapq"}]}
+ ]
+}.
