@@ -3,16 +3,21 @@
 -export(
    [new/0,
     size/1,
-    find_min/1,
+    is_key/2,
     insert/3,
+    find_min/1,
     delete_min/1,
-    update_key/3]).
+    update_key/3,
+    delete_key/2]).
 
 new() ->
     {0, leaf, #{}}.
 
 size({_, _, Map}) ->
     map_size(Map).
+
+is_key(Key, {_, _, Map}) ->
+    maps:is_key(Key, Map).
 
 find_min({_, leaf, _}) ->
     none;
@@ -54,7 +59,7 @@ delete_last({Height, Tree, Map}) ->
             false -> 0
         end,
     {K, P, Tree1} = delete_last(Mask bsr 1, Position - Mask, Tree),
-    {K, P, {Height1, Tree1, Map}}.
+    {K, P, {Height1, Tree1, maps:remove(K, Map)}}.
 
 delete_last(_, _, {tree, K, P, leaf, leaf}) ->
     {K, P, leaf};
@@ -102,26 +107,47 @@ delete_min({_, {tree, _, _, _, _}, _}=Queue) ->
             {K, P, {Height, Tree, maps:remove(K, Map)}}
     end.
 
-update_key(Key, Fun, {Height, Tree, Map}) ->
+update_key(Key, Fun, Queue) ->
+    update(Key, fun(P) -> {Key, Fun(P)} end, Queue).
+
+update(Key, Fun, {Height, Tree, Map}) ->
     Pos = maps:get(Key, Map),
-    {Tree1, Map1} = update_key(Pos, 1, 0, Fun, Tree, Map),
+    {Tree1, Map1} = update(Pos, 1, 0, Fun, Tree, Map),
     {Height, Tree1, Map1}.
 
-update_key(1, Prefix, Path, Fun, {tree, K, P, L, R}, Map) ->
-    siftdown(Prefix, Path, {tree, K, Fun(P), L, R}, Map);
-update_key(Pos, Prefix, Path, Fun, {tree, K, P, L, R}, Map) when (Pos band 1) == 0 ->
-    case update_key(Pos bsr 1, Prefix bsl 1, Path, Fun, L, Map) of
+update(1, Prefix, Path, Fun, {tree, K, P, L, R}, Map) ->
+    {K1, P1} = Fun(P),
+    siftdown(
+      Prefix,
+      Path,
+      {tree, K1, P1, L, R},
+      case K1 of
+          K ->
+              Map;
+          _ ->
+              maps:remove(K, Map)
+      end);
+update(Pos, Prefix, Path, Fun, {tree, K, P, L, R}, Map) when (Pos band 1) == 0 ->
+    case update(Pos bsr 1, Prefix bsl 1, Path, Fun, L, Map) of
         {{tree, K1, P1, L1, R1}, Map1} when P1 < P ->
             {{tree, K1, P1, {tree, K, P, L1, R1}, R},
              Map1#{K1 => Prefix bor Path, K => (Prefix bsl 1) bor Path}};
         {L1, Map1} ->
             {{tree, K, P, L1, R}, Map1}
     end;
-update_key(Pos, Prefix, Path, Fun, {tree, K, P, L, R}, Map) ->
-    case update_key(Pos bsr 1, Prefix bsl 1, Prefix bor Path, Fun, R, Map) of
+update(Pos, Prefix, Path, Fun, {tree, K, P, L, R}, Map) ->
+    case update(Pos bsr 1, Prefix bsl 1, Prefix bor Path, Fun, R, Map) of
         {{tree, K1, P1, L1, R1}, Map1} when P1 < P ->
             {{tree, K1, P1, L, {tree, K, P, L1, R1}},
              Map1#{K1 => Prefix bor Path, K => (Prefix bsl 1) bor Prefix bor Path}};
         {R1, Map1} ->
             {{tree, K, P, L, R1}, Map1}
+    end.
+
+delete_key(Key, {_, {tree, _, _, _, _}, _}=Queue) ->
+    case delete_last(Queue) of
+        {Key, _, Queue1} ->
+            Queue1;
+        {K, P, Queue1} ->
+            update(Key, fun(_) -> {K, P} end, Queue1)
     end.

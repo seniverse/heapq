@@ -117,3 +117,17 @@ prop_update() ->
           ?SUCHTHAT(X, map(integer(), integer()), map_size(X) > 0),
           {M, list(tuple([oneof(maps:keys(M)), integer()]))}),
        prop_update(List, from_map(Map))).
+
+prop_delete_key([], _) ->
+    true;
+prop_delete_key([H|T], Queue) ->
+    Q1 = heapq:delete_key(H, Queue),
+    prop_heapq(Q1) and prop_delete_key(T, Q1).
+
+prop_delete_key() ->
+    ?FORALL(
+       Map,
+       map(integer(), integer()),
+       prop_delete_key(
+         maps:keys(Map),
+         from_map(Map))).
